@@ -19,3 +19,15 @@ userprog: Código fuente para los programas de usuario, además contiene algunas
 utils: Archivos para facilitar la instalación de PintOS en un computador propio.
 
 vm: archivos para memoria virtual.
+
+
+Archivos dentro de /threads
+
+
+Makefile: Una copia de "pintos/src/Makefile.build". Describe cómo compilar el kernel.
+
+kernel.o: Object file para todo el kernel. Es el resultado de unir los object files compilados a partir de cada archivo fuente del kernel, en un único object file. Contiene información para debug.
+
+kernel.bin: Imagen de memoria del kernel, esto significa, los bytes exactos que son cargados a memoria para ejecutar el Pintos kernel. Esto es como el "kernel.o" sin la información de debug, lo cual ahorra bastante espacio.
+
+loader.bin: Imagen de memoria para el kernel loader, una pequeña porción de código es escrita en lenguaje ensamblador que lee el kernel del disco a memoria y lo inicializa. Mide exactamente 512 bytes de largo, un tamaño fijado por el PC BIOS.
