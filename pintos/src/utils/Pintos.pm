@@ -352,6 +352,14 @@ sub cyl_sectors {
     return $geometry{H} * $geometry{S};
 }
 
+
+
+
+
+
+
+
+
 # read_loader($file_name)
 #
 # Reads and returns the first $LOADER_SIZE bytes in $file_name.
