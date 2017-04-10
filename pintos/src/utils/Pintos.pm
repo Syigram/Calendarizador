@@ -353,13 +353,6 @@ sub cyl_sectors {
 }
 
 
-
-
-
-
-
-
-
 # read_loader($file_name)
 #
 # Reads and returns the first $LOADER_SIZE bytes in $file_name.

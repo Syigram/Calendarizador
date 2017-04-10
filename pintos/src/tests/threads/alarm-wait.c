@@ -16,6 +16,7 @@ void
 test_alarm_single (void) 
 {
   test_sleep (5, 1);
+  printf("Hello world :)\n");
 }
 
 void
