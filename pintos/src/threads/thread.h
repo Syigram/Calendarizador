@@ -1,6 +1,9 @@
 #ifndef THREADS_THREAD_H
 #define THREADS_THREAD_H
 
+#include "threads/synch.h"
+
+
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
@@ -90,6 +93,11 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
+    int64_t wakeup_time;                /* Thread wakeup time in ticks. */
+    struct semaphore timer_sema;
+    struct list_elem timer_elem;        /* List element for timer_wait_list. */
+ 
+
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
@@ -138,4 +146,14 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+/* Compare two threads by their wakeup_time. If wakeup_time
+    same, compare thread priorities to break the tie.
+   If true, first thread has earlier wakeup_time and in case of
+    a tie, higher priority. */
+bool less_wakeup (const struct list_elem *left,
+ const struct list_elem *right, void *aux UNUSED);
+
+/* Comparison function that prefers the threas with higher priority. */
+bool more_prio (const struct list_elem *left,
+ const struct list_elem *right, void *aux UNUSED);
 #endif /* threads/thread.h */

@@ -470,6 +470,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  sema_init (&t->timer_sema, 0);  /* Initialize timer_sema with false.
+                                     Used as a binary semaphore. */
   list_push_back (&all_list, &t->allelem);
 }
 
@@ -569,8 +571,10 @@ schedule (void)
     prev = switch_threads (cur, next);
   thread_schedule_tail (prev);  
 
+  if (strcmp(&cur->name, "idle") != 0){
 
-  printf("Calendarizando thread %s\n", &cur->name);
+    printf("Calendarizando thread %s\n", &cur->name);
+  }
 }
 
 /* Returns a tid to use for a new thread. */
@@ -586,7 +590,20 @@ allocate_tid (void)
 
   return tid;
 }
-
+
+bool
+less_wakeup (const struct list_elem *left,
+ const struct list_elem *right, void *aux UNUSED)
+{
+  const struct thread *tleft = list_entry (left, struct thread, timer_elem);
+  const struct thread *tright = list_entry (right, struct thread, timer_elem);
+
+  if (tleft->wakeup_time != tright->wakeup_time)
+    return tleft->wakeup_time < tright->wakeup_time;
+  else
+    return tleft->priority > tright->priority;
+}
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
