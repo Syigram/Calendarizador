@@ -36,7 +36,7 @@ prueba (void)
       char name[16];
       ti->start_time = start_time;
       ti->tick_count = 0;
-      ti->meta = i*100;
+      ti->meta = i*i*10000;
 
       snprintf(name, sizeof name, "Thread %d", i);
       thread_create (name, PRI_DEFAULT, load_thread, ti);
@@ -44,7 +44,7 @@ prueba (void)
     }
 
   msg ("Sleeping 10 seconds to let threads run, please wait...");
-  timer_sleep (10 * TIMER_FREQ);
+  timer_sleep (1 * TIMER_FREQ);
   
   for (i = 0; i < thread_cnt; i++)
     msg ("Thread %d received %d ticks.", i, info[i].tick_count);
@@ -55,8 +55,15 @@ load_thread (void *ti_)
 {
   struct thread_info *ti = ti_;
   int i=0;
+  int64_t last_time = 0;
+  int64_t sleep_time = 1 * TIMER_FREQ;
+  timer_sleep (sleep_time - timer_elapsed (ti->start_time));
   while ( i < ti-> meta ) 
     {
+      int64_t cur_time = timer_ticks ();
+      if (cur_time != last_time)
+        ti->tick_count++;
+      last_time = cur_time;
       i++;
     }
 }
