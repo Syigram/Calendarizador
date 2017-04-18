@@ -115,6 +115,9 @@ struct thread
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
+extern bool roundrobin;
+extern bool fcfs;
+extern bool sjf;
 
 void thread_init (void);
 void thread_start (void);
@@ -137,7 +140,8 @@ void thread_yield (void);
 
 void refresh_priority(void);
 void refresh_load_avg(void);
-void refresh_cpu(struct thread *t);
+void refresh_cpu(struct thread *t, void *aux);
+void refresh_priority_thread(struct thread *t, void *);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);
@@ -152,9 +156,9 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 /* Compare 2 threads for the wakeup time */
-bool wakeup_cmp (struct list_elem *left, struct list_elem *right);
+bool wakeup_cmp (const struct list_elem *left, const struct list_elem *right, void *aux);
 
 /* Compare 2 threads for the priority */
-bool priority_cmp ( struct list_elem *left, struct list_elem *right);
+bool priority_cmp (const struct list_elem *left, const struct list_elem *right, void *aux);
 
 #endif /* threads/thread.h */

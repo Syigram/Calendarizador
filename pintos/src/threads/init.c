@@ -257,12 +257,15 @@ parse_options (char **argv)
       else if (!strcmp (name, "-mlfqs")){
         if (!strcmp (value, "1") ){
 		printf("Algoritmo FCFS seleccionado\n");
+		fcfs= true;
 	}
 	else if (!strcmp (value, "2") ){
 		printf("Algoritmo Round-Robin seleccionado\n");
+		roundrobin = true;
 	}
 	else if (!strcmp (value, "3") ){
 		printf("Algoritmo SJF seleccionado\n");
+		sjf = true;
 	}
 	else if (!strcmp (value, "4") ){
 		printf("Algoritmo Colas Multinivel seleccionado\n");

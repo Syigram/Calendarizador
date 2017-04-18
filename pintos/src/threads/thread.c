@@ -21,7 +21,7 @@
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
-
+#define TIME_SLICE 5           /* # of timer ticks to give each thread. */
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
@@ -53,13 +53,16 @@ static long long kernel_ticks;  /* # of timer ticks in kernel threads. */
 static long long user_ticks;    /* # of timer ticks in user programs. */
 
 /* Scheduling. */
-#define TIME_SLICE 4            /* # of timer ticks to give each thread. */
+
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
+bool roundrobin;
+bool fcfs;
+bool sjf;
 
 fp load_avg; 
 
@@ -127,45 +130,67 @@ thread_start (void)
 void
 thread_tick (void) 
 {
-  struct thread *t = thread_current ();
+  struct thread *cur = thread_current ();
 
   /* Update statistics. */
-  if (t == idle_thread)
+  if (cur == idle_thread)
     idle_ticks++;
 #ifdef USERPROG
-  else if (t->pagedir != NULL)
+  else if (cur->pagedir != NULL)
     user_ticks++;
 #endif
   else
     kernel_ticks++;
 
   /* Enforce preemption. */
-  if (++thread_ticks >= TIME_SLICE)
-    intr_yield_on_return (); ////////////////////////////////////////////////////////// comentar esto para evitar quitar el cpu de un thread
-
+  if ( ++thread_ticks >= TIME_SLICE && roundrobin )
+    intr_yield_on_return (); 
+  
   if (thread_mlfqs)
   {
     /* Update thread statistics every second. */
     if (timer_ticks () % TIMER_FREQ == 0)
     {
-      refresh_load_avg ();				///////////////// Aquí son valores para actualizar en cada segundo
+      refresh_load_avg ();				
       thread_foreach (refresh_cpu, NULL);
-    } else if (t->status == THREAD_RUNNING)
-        t->recent_cpu = add_int (t->recent_cpu, 1); //////////////////// Esto suma 1 al proceso actual en cada CPU
-
-    /* Recalculate priority every 4th second. */
+    } 
+		if (cur->status == THREAD_RUNNING)
+    	cur->recent_cpu = add_int (cur->recent_cpu, 1); 
+   
+ 		/* Recalculate priority every 4th second. */
     if (timer_ticks () % (TIMER_FREQ * 4) == 0)
     {
-      refresh_priority();
-      list_sort (&ready_list, priority_cmp, NULL);
-      printf("Prioridades actualizadas\n\n\n");
-
-      struct list_elem *tmp;
-      int ready_length = list_size (&ready_list);
-      for (tmp = list_begin (&ready_list); tmp != list_end (&ready_list); tmp = list_next (tmp))
+      
+      if ( list_empty(&ready_list) )
       {
-        struct thread *t = list_entry (tmp, struct thread, elem);
-      }
+	  		return;
+			}
+			else
+			{
+		    refresh_priority();
+		    list_sort (&ready_list, priority_cmp, NULL);
+		    printf("Prioridades actualizadas\n\n");
+
+		    struct list_elem *tmp;
+		    int ready_length = list_size (&ready_list);
+		    for (tmp = list_begin (&ready_list); tmp != list_end (&ready_list); tmp = list_next (tmp))
+		    {
+		      struct thread *t = list_entry (tmp, struct thread, elem);
+					printf("Thread: %s, prioridad: %d\n", t->name, t->priority);
+		    }
+
+				if (cur != idle_thread)
+		 			printf("Thread: %s, prioridad: %d\n", cur->name, cur->priority);
+			}
+    }
+
+   
+
+    /* Enforce preemption. */
+    if ( thread_ticks >= TIME_SLICE )
+    {
+       intr_yield_on_return (); 
+       list_sort (&ready_list, priority_cmp, NULL);
     }
   }
 }
@@ -620,13 +645,14 @@ schedule (void)
     prev = switch_threads (cur, next);
   thread_schedule_tail (prev);  
 
+  
   if (strcmp(&cur->name, "idle") != 0){
 
-    printf("Calendarizando thread %s\t", &cur->name);
+    printf("Calendarizando thread %s\t", running_thread ()->name);
     printf("Carga de trabajo %d\t", thread_get_load_avg());
-    printf("Prioridad %d\t", cur->priority);
-    printf("CPU %d\t", cur->recent_cpu);
-    printf("Repeat %d\n", cur->repeat);
+    printf("Prioridad %d\t", running_thread ()->priority);
+    printf("CPU %d\t", running_thread ()->recent_cpu);
+    printf("Repeat %d\n", running_thread ()->repeat);
   }
 }
 
@@ -649,33 +675,37 @@ void
 refresh_priority ()
 {
   struct list_elem *tmp;
-  int ready_length = list_size (&ready_list);
+  struct thread *r = running_thread();
+
+
   for (tmp = list_begin (&ready_list); tmp != list_end (&ready_list); tmp = list_next (tmp))
   {
     struct thread *t = list_entry (tmp, struct thread, elem);
-    t->priority = PRI_MAX - fp_to_int_round(div_int (t->recent_cpu, 4)) - (t->nice * 2);
+    refresh_priority_thread(t, NULL);
   }
+  refresh_priority_thread(r, NULL);
+}
+
+void
+refresh_priority_thread(struct thread *t, void *aux){
+    t->priority = PRI_MAX - fp_to_int_round(div_int (t->recent_cpu, 4)) - (t->nice * 2);
+
+    if (t->priority > PRI_MAX)
+      t->priority = PRI_MAX;
+    else if (t->priority < PRI_MIN)
+      t->priority = PRI_MIN;
 }
 
 /* Refresh the priority of the ready threads */
 void
-refresh_cpu (struct thread *t)
+refresh_cpu (struct thread *t, void *aux)
 {
   if (t != idle_thread)
   {
-    /*
-fp twice_load_avg = mult_int (load_avg, 2);
-    fp coeff = div_fp (twice_load_avg, add_int (twice_load_avg, 1));
-    
-    t->recent_cpu = add_int (mult_fp (coeff, t->recent_cpu), t->nice);
-*/
-
     fp first_term = mult_int(load_avg, 2);
     fp second_term = add_int(first_term, 1);
     fp third_term = div_fp(first_term, second_term);  
     t->recent_cpu = add_int (mult_fp (third_term, t->recent_cpu), t->nice);
-    //printf("El hilo %s tiene un cpu de %d\n", t->name, t->recent_cpu);
-
   }
 }
 
@@ -683,14 +713,18 @@ fp twice_load_avg = mult_int (load_avg, 2);
 void
 refresh_load_avg ()
 {
-  int ready_length = list_size (&ready_list);
-  load_avg = fp_to_int(add_fp (div_int (mult_int (load_avg, 59), 60), div_int (int_to_fp (ready_length), 60) ));
-}
+    /* Update load_avg. */
+  int ready_thread_count = list_size (&ready_list);
+  if (thread_current () != idle_thread)
+    ++ready_thread_count;
 
+  int ready_length = list_size (&ready_list);
+  load_avg = (add_fp (div_int (mult_int (load_avg, 59), 60), div_int (int_to_fp (ready_length), 60) ));
+}
 
 /* Compare 2 threads for wakeup time or priority */
 bool
-wakeup_cmp ( struct list_elem *left, struct list_elem *right)
+wakeup_cmp (const struct list_elem *left,const struct list_elem *right,void *aux)
 {
   struct thread *t_left = list_entry (left, struct thread, timer_elem);
   struct thread *t_right = list_entry (right, struct thread, timer_elem);
@@ -703,7 +737,7 @@ wakeup_cmp ( struct list_elem *left, struct list_elem *right)
 
 /* Comparison function that prefers the thread with higher priority. */
 bool
-priority_cmp (struct list_elem *left, struct list_elem *right)
+priority_cmp (const struct list_elem *left, const struct list_elem *right, void *aux)
 {
   struct thread *t_left = list_entry (left, struct thread, elem);
   struct thread *t_right = list_entry (right, struct thread, elem);
