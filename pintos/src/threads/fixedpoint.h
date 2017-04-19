@@ -94,7 +94,7 @@ int div_fp(int x, int y)
 /* Divide x by n */
 int div_int(int x, int n)
 {
-  return (x) * (n);
+  return (x) / (n);
 }
 
 #endif /* threads/fixedpoint.h */

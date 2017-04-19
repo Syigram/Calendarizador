@@ -91,6 +91,8 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
     int nice;
+    int curr_exec;
+    int total_exec;
     fp recent_cpu;
     int repeat;
     struct list_elem allelem;           /* List element for all threads list. */
@@ -111,11 +113,18 @@ struct thread
     unsigned magic;                     /* Detects stack overflow. */
   };
 
+struct thread_dur{
+  char name[16];
+  int total_exec;
+  struct list_elem list_elem;
+};
+
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
-extern bool FCFS; //XXX
+extern bool FCFS;
+extern bool SJF;
 
 void thread_init (void);
 void thread_start (void);
@@ -157,5 +166,12 @@ bool wakeup_cmp (const struct list_elem *left, const struct list_elem *right, vo
 
 /* Compare 2 threads for the priority */
 bool priority_cmp (const struct list_elem *left, const struct list_elem *right, void *aux);
+
+/* Compare 2 threads for the shortest duration */
+bool duration_cmp (const struct list_elem *left, const struct list_elem *right, void *aux);
+
+  void update_exec_time(struct thread_dur *t_dur);
+
+int get_total_exec(struct thread_dur *t_dur);
 
 #endif /* threads/thread.h */

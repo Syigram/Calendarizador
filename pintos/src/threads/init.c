@@ -264,6 +264,7 @@ parse_options (char **argv)
 	}
 	else if (!strcmp (value, "3") ){
 		printf("Algoritmo SJF seleccionado\n");
+    SJF = true;
 	}
 	else if (!strcmp (value, "4") ){
 		printf("Algoritmo Colas Multinivel seleccionado\n");

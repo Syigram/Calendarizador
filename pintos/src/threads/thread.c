@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <random.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 #include "threads/thread.h"
 #include "threads/flags.h"
@@ -29,6 +30,10 @@ static struct list ready_list;
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
+
+/* List of all processes that have run, used for SJF algorithm */
+
+static struct list all_all_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -61,6 +66,7 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 bool FCFS;
+bool SJF;
 
 fp load_avg;
 
@@ -97,6 +103,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&all_all_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -142,9 +149,9 @@ thread_tick (void)
   else
     kernel_ticks++;
 
-  /* Enforce preemption. */
-  if (++thread_ticks >= TIME_SLICE)
-    intr_yield_on_return (); ////////////////////////////////////////////////////////// comentar esto para evitar quitar el cpu de un thread
+  // /* Enforce preemption. */
+  // if (++thread_ticks >= TIME_SLICE)
+  //   intr_yield_on_return (); ////////////////////////////////////////////////////////// comentar esto para evitar quitar el cpu de un thread
 
   if (thread_mlfqs)
   {
@@ -170,6 +177,9 @@ thread_tick (void)
       {
         struct thread *t = list_entry (tmp, struct thread, elem);
       }
+    }
+    if (SJF){ //XXX
+      t->curr_exec +=1;
     }
   }
 }
@@ -240,9 +250,12 @@ thread_create (const char *name, int priority,
   sf->ebp = 0;
 
   intr_set_level (old_level);
-
+  if (SJF){ //XXX
+    list_sort (&ready_list, duration_cmp, NULL);
+  }
   /* Add to run queue. */
   thread_unblock (t);
+
 
   return tid;
 }
@@ -328,6 +341,13 @@ thread_exit (void)
 #ifdef USERPROG
   process_exit ();
 #endif
+
+/* If SJF is active, it recalculates the thread's
+   approximate execution duration using the defined
+   formula: Tnew = alpha * recent + (1 - alpha) * Told */
+if (SJF){
+  int alpha = div_int(1,2);
+}
 
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
@@ -516,6 +536,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  t->curr_exec = 0;
   sema_init (&t->timer_sema, 0);
 
   if (thread_mlfqs)
@@ -526,6 +547,13 @@ init_thread (struct thread *t, const char *name, int priority)
     else
       t->recent_cpu = thread_get_recent_cpu();
     t->repeat= 0;
+  }
+
+  if (SJF){
+    struct thread_dur *t_dur;
+    strlcpy (t_dur->name, t->name, sizeof t_dur->name);
+    t_dur->total_exec = get_total_exec(t_dur); //se obtiene duracion, si existe
+    t->total_exec = t_dur->total_exec;
   }
 
   list_push_back (&all_list, &t->allelem);
@@ -721,9 +749,43 @@ priority_cmp (const struct list_elem *left, const struct list_elem *right, void 
   struct thread *t_left = list_entry (left, struct thread, elem);
   struct thread *t_right = list_entry (right, struct thread, elem);
 
-  return t_left->priority < t_right->priority;
+  return t_left->priority > t_right->priority;
+}
+bool
+duration_cmp (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED)
+{
+  struct thread_dur *t_left = list_entry (left, struct thread_dur, list_elem);
+  struct thread_dur *t_right = list_entry (right, struct thread_dur, list_elem);
+
+  return t_left->priority > t_right->priority;
 }
 
+
+int
+get_total_exec(struct thread_dur *t_dur)
+{
+  struct list_elem *tmp;
+  for (tmp = list_begin (&all_all_list); tmp != list_end (&all_all_list); tmp = list_next (tmp))
+  {
+    struct thread_dur *t_dur_tmp = list_entry (tmp, struct thread_dur, list_elem);
+    if (strcmp(t_dur_tmp->name, t_dur->name) == 0)
+      return t_dur_tmp->total_exec;
+  }
+  /*If the thread isn't found, it means it hasn't run yet, so we
+  add it to the all_all_list and return a default value of 0 */
+  list_push_back (&all_all_list, &t_dur->list_elem);
+  return 0;
+}
+
+void update_exec_time(struct thread_dur *t_dur){
+    struct list_elem *tmp;
+    for (tmp = list_begin (&all_all_list); tmp != list_end (&all_all_list); tmp = list_next (tmp))
+    {
+      struct thread_dur *t_dur_tmp = list_entry (tmp, struct thread_dur, list_elem);
+      if (strcmp(t_dur_tmp->name, t_dur->name) == 0)
+        return t_dur_tmp->total_exec;
+    }
+}
 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
