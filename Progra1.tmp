@@ -3,44 +3,42 @@
 			|                    I semestre, 2017                |
 			|   Documento de Diseño, Primer proyecto programado  |
 			+----------------------------------------------------+
-				   
+
 ---- GRUPO ----
 
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
+Alejandro Gonzalez <email@domain.example>
+Esteban Calvo <email@domain.example>
 
-Calendarizador <tipo de calendarizador>
+Calendarizador <First Come First Serve>
 =======================================
 
 ---- Estructuras de datos ----
 
->> Copie la declaracion de cada estructura nueva utilizada por su 
+>> Copie la declaracion de cada estructura nueva utilizada por su
 codigo, variables globales o estaticas, `struct', `typedef', etc.
 
->> Explique las estructuras citadas anteriormente en menos de 30 
+>> Explique las estructuras citadas anteriormente en menos de 30
 palabras cada una.
 
 
 ---- ALGORITMOS ----
 
->> Explique en prosa el funcionamiento de su algoritmo, utilizando 
+>> Explique en prosa el funcionamiento de su algoritmo, utilizando
 el nombre de las variables utilizadas y funciones.
 
 
 ---- SYNC ----
 
->>Describa como existe una condicion de carrera en
-thread_set_priority() y explique como su algoritmo lo resuelve. 
-Justifique por que un lock podria o no podria funcionar para este 
-algoritmo
+En este caso, no existe una condición de carrera para el 
+método set_priority(). Pues no es necesaria la utilización de dicho
+método para la implementación de este algoritmo.
 
 ---- JUSTIFICACION ----
->>Describa la razon por la que se decidio implementar este diseño 
+>>Describa la razon por la que se decidio implementar este diseño
 y en que maneras es superior a otras soluciones que consideraron.
->>Realize una corta critica, positiva o negativa, sobre su 
-algoritmo y describa como los cambios de contexto en este 
-calendarizador y las reglas y politicas implementadas afectan el 
+>>Realize una corta critica, positiva o negativa, sobre su
+algoritmo y describa como los cambios de contexto en este
+calendarizador y las reglas y politicas implementadas afectan el
 desempeño del procesador.
 
 ___________________________________________________________________
