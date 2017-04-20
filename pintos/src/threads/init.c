@@ -254,7 +254,7 @@ parse_options (char **argv)
 #endif
       else if (!strcmp (name, "-rs"))
         random_init (atoi (value));
-      else if (!strcmp (name, "-mlfqs")){
+      else if (!strcmp (name, "-alg")){
         if (!strcmp (value, "1") ){
 		printf("Algoritmo FCFS seleccionado\n");
 		fcfs= true;

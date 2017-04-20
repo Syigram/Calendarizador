@@ -21,7 +21,7 @@
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
-#define TIME_SLICE 5           /* # of timer ticks to give each thread. */
+#define TIME_SLICE 10           /* # of timer ticks to give each thread. */
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
@@ -143,55 +143,55 @@ thread_tick (void)
     kernel_ticks++;
 
   /* Enforce preemption. */
-  if ( ++thread_ticks >= TIME_SLICE && roundrobin )
+  if ( ++thread_ticks >= TIME_SLICE && roundrobin ){
     intr_yield_on_return (); 
+		return;
+	}
   
   if (thread_mlfqs)
   {
-    /* Update thread statistics every second. */
-    if (timer_ticks () % TIMER_FREQ == 0)
+		if ( list_empty(&ready_list) )
     {
-      refresh_load_avg ();				
-      thread_foreach (refresh_cpu, NULL);
-    } 
-		if (cur->status == THREAD_RUNNING)
-    	cur->recent_cpu = add_int (cur->recent_cpu, 1); 
-   
- 		/* Recalculate priority every 4th second. */
-    if (timer_ticks () % (TIMER_FREQ * 4) == 0)
-    {
-      
-      if ( list_empty(&ready_list) )
-      {
-	  		return;
-			}
-			else
+	  	return;
+		}
+		else
+		{
+			struct thread *next = list_entry (list_front (&ready_list), struct thread, elem);
+
+		  /* Update thread statistics every second. */
+		  if (timer_ticks () % TIMER_FREQ == 0)
+		  {
+		    refresh_load_avg ();				
+		    thread_foreach (refresh_cpu, NULL);
+		  } 
+			if (cur->status == THREAD_RUNNING)
+		  	cur->recent_cpu = add_int (cur->recent_cpu, 1); 
+		 
+	 		/* Recalculate priority every 4th second. */
+		  if (timer_ticks () % (TIMER_FREQ * 4) == 0)
+		  {
+				  refresh_priority();
+				  list_sort (&ready_list, priority_cmp, NULL);
+				  printf("Prioridades actualizadas\n\n");
+
+				  struct list_elem *tmp;
+				  int ready_length = list_size (&ready_list);
+				  for (tmp = list_begin (&ready_list); tmp != list_end (&ready_list); tmp = list_next (tmp))
+				  {
+				    struct thread *t = list_entry (tmp, struct thread, elem);
+						printf("Thread: %s, prioridad: %d\n", t->name, t->priority);
+				  }
+
+					if (cur != idle_thread)
+			 			printf("Thread: %s, prioridad: %d\n", cur->name, cur->priority);
+		  }
+			if ( ++thread_ticks >= TIME_SLICE  &&  cur->priority <= next->priority )
 			{
-		    refresh_priority();
-		    list_sort (&ready_list, priority_cmp, NULL);
-		    printf("Prioridades actualizadas\n\n");
-
-		    struct list_elem *tmp;
-		    int ready_length = list_size (&ready_list);
-		    for (tmp = list_begin (&ready_list); tmp != list_end (&ready_list); tmp = list_next (tmp))
-		    {
-		      struct thread *t = list_entry (tmp, struct thread, elem);
-					printf("Thread: %s, prioridad: %d\n", t->name, t->priority);
-		    }
-
-				if (cur != idle_thread)
-		 			printf("Thread: %s, prioridad: %d\n", cur->name, cur->priority);
-			}
-    }
-
-   
-
-    /* Enforce preemption. */
-    if ( thread_ticks >= TIME_SLICE )
-    {
-       intr_yield_on_return (); 
-       list_sort (&ready_list, priority_cmp, NULL);
-    }
+				   intr_yield_on_return (); 
+				   list_sort (&ready_list, priority_cmp, NULL);
+			}	
+		}
+    
   }
 }
 
@@ -402,9 +402,7 @@ thread_set_priority (int new_priority)
   thread_current ()->priority = new_priority;
    /* Recalculate priority. */
   if (thread_mlfqs)
-  {
     refresh_priority();
-  }
 }
 
 /* Returns the current thread's priority. */
@@ -418,15 +416,11 @@ thread_get_priority (void)
 void
 thread_set_nice (int nice) 
 {
-  
   struct thread *t = thread_current ();
   t->nice = nice;
-
   /* Recalculate priority. */
   if (thread_mlfqs)
-  {
     refresh_priority ();
-  }
 }
 
 /* Returns the current thread's nice value. */
@@ -677,7 +671,6 @@ refresh_priority ()
   struct list_elem *tmp;
   struct thread *r = running_thread();
 
-
   for (tmp = list_begin (&ready_list); tmp != list_end (&ready_list); tmp = list_next (tmp))
   {
     struct thread *t = list_entry (tmp, struct thread, elem);
@@ -729,10 +722,9 @@ wakeup_cmp (const struct list_elem *left,const struct list_elem *right,void *aux
   struct thread *t_left = list_entry (left, struct thread, timer_elem);
   struct thread *t_right = list_entry (right, struct thread, timer_elem);
 
-  if (t_left->wakeup_time != t_right->wakeup_time)
-    return t_left->wakeup_time < t_right->wakeup_time;
-  else
-    return t_left->priority > t_right->priority;
+  if (t_left->wakeup_time < t_right->wakeup_time)
+    return true;
+  return false;
 }
 
 /* Comparison function that prefers the thread with higher priority. */
@@ -742,7 +734,9 @@ priority_cmp (const struct list_elem *left, const struct list_elem *right, void 
   struct thread *t_left = list_entry (left, struct thread, elem);
   struct thread *t_right = list_entry (right, struct thread, elem);
 
-  return t_left->priority > t_right->priority;
+	if (t_left->priority > t_right->priority)
+		return true;
+  return false;
 }
 
 
