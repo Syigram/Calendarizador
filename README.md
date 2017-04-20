@@ -1,4 +1,4 @@
-# Calendarizador
+# Calendarizador PintOS
 ## Proyecto I - Calendarizador de Procesos
 
 
