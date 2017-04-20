@@ -30,6 +30,10 @@ static struct list ready_list;
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
 
+/* Lista de todos los procesos que han corrido, utilizada
+   para el algoritmo SJF */
+static struct list all_all_list;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -95,17 +99,18 @@ void
 thread_init (void) 
 {
   ASSERT (intr_get_level () == INTR_OFF);
-
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+
+	if (sjf)
+	  list_init (&all_all_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
   init_thread (initial_thread, "main", PRI_DEFAULT);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
-  printf("Creación de thread %s completa\n", initial_thread->name);
 }
 
 /* Starts preemptive thread scheduling by enabling interrupts.
@@ -143,10 +148,17 @@ thread_tick (void)
     kernel_ticks++;
 
   /* Enforce preemption. */
-  if ( ++thread_ticks >= TIME_SLICE && roundrobin ){
+  if (roundrobin && ++thread_ticks >= TIME_SLICE ){
     intr_yield_on_return (); 
 		return;
 	}
+
+	if (sjf)
+  {
+      cur->curr_exec += 1; //SJFs
+      thread_foreach(get_total_exec_each, NULL);
+      list_sort(&ready_list, duration_cmp, NULL);
+  }
   
   if (thread_mlfqs)
   {
@@ -350,9 +362,16 @@ thread_exit (void)
   process_exit ();
 #endif
 
+	if (sjf){
+		calc_new_total_exec(thread_current()->total_exec, thread_current()->curr_exec);
+    list_sort(&ready_list, duration_cmp, NULL);
+  }
+
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
+	thread_current()->avg_wait = timer_ticks() - thread_current()->avg_wait;
+  printf("Pid: %d \t Wait time: %d\n", thread_tid(), thread_current()->avg_wait);
   intr_disable ();
   list_remove (&thread_current()->allelem);
   thread_current ()->status = THREAD_DYING;
@@ -532,6 +551,9 @@ init_thread (struct thread *t, const char *name, int priority)
   t->priority = priority;
   t->magic = THREAD_MAGIC;
   sema_init (&t->timer_sema, 0);  
+  t->curr_exec = 0;
+  t->total_exec = 0;
+  t->avg_wait = 0;
 
   if (thread_mlfqs)
   {
@@ -539,6 +561,9 @@ init_thread (struct thread *t, const char *name, int priority)
     t->recent_cpu = 0;
     t->repeat= 0;
   }
+
+	if (sjf)
+    t->total_exec = get_total_exec(t);
 
   list_push_back (&all_list, &t->allelem);
 }
@@ -612,7 +637,8 @@ thread_schedule_tail (struct thread *prev)
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
     {
       ASSERT (prev != cur);
-      palloc_free_page (prev);
+			if (!sjf)
+      	palloc_free_page (prev);
     }
 }
 
@@ -648,6 +674,10 @@ schedule (void)
     printf("CPU %d\t", running_thread ()->recent_cpu);
     printf("Repeat %d\n", running_thread ()->repeat);
   }
+	//	printf("total_exec %d\t", cur->total_exec );
+  //  printf("curr_exec %d\t", cur->curr_exec );
+	if (sjf)
+		print_ready_list();
 }
 
 /* Returns a tid to use for a new thread. */
@@ -739,6 +769,104 @@ priority_cmp (const struct list_elem *left, const struct list_elem *right, void 
   return false;
 }
 
+/* Funcion utilizada para ordenar de forma ascendente, la lista
+   de los threads listos (ready_list) */
+bool
+duration_cmp (const struct list_elem *left, const struct list_elem *right, void *aux UNUSED)
+{
+  struct thread *t_left = list_entry (left, struct thread, elem);
+  struct thread *t_right = list_entry (right, struct thread, elem);
+
+  return t_left->total_exec < t_right->total_exec;
+}
+
+/* Funcion utilizada para obtener el execute time de un
+   thread dado. Si el valor es 0, es decir, el thread no
+   ha corrido, se agrega el thread a la lista all_all_list */
+int
+get_total_exec (struct thread *t)
+{
+  struct list_elem *tmp;
+  for (tmp = list_begin (&all_all_list); tmp != list_end (&all_all_list); tmp = list_next (tmp))
+  {
+    struct thread *t_tmp = list_entry (tmp, struct thread, allallelem);
+    if (strcmp(t_tmp->name, t->name) == 0)
+      return t_tmp->total_exec;
+  }
+  list_push_back (&all_all_list, &t->allallelem);
+  return 0;
+}
+
+void get_total_exec_each(struct thread *t, void *aux UNUSED)
+{
+    t->total_exec = get_total_exec(t);
+}
+
+void
+print_all_all_list() {
+  struct list_elem *tmp;
+  for (tmp = list_begin (&all_all_list); tmp != list_end (&all_all_list); tmp = list_next (tmp))
+  {
+    struct thread *t_tmp = list_entry (tmp, struct thread, allallelem);
+    printf("i: %s,", t_tmp->name );
+  }
+}
+void
+print_ready_list() {
+  struct list_elem *tmp;
+  for (tmp = list_begin (&ready_list); tmp != list_end (&ready_list); tmp = list_next (tmp))
+  {
+    struct thread *t_tmp = list_entry (tmp, struct thread, elem);
+    printf("ready: %s\n", t_tmp->name );
+  }
+}
+/* Funcion utilizada para guardar el nuevo execute time del
+   thread. Es llamada cuando el thread esta por terminar*/
+
+void
+update_exec_time (const char *name, int total_exec)
+{
+  printf("entre a update exec\n");
+    struct list_elem *tmp;
+    for (tmp = list_begin (&all_all_list); tmp != list_end (&all_all_list); tmp = list_next (tmp))
+    {
+      struct thread *t = list_entry (tmp, struct thread, allallelem);
+      if (strcmp(t->name, name) == 0)
+      {
+        printf("Me encontre:%s\n", t->name);
+        t->total_exec = total_exec;
+      }
+
+    }
+    printf("finalice update exec\n");
+}
+
+/* Para SJF, recalcula la duracion aproximada que tarda en
+   ejecutarse el thread. Utilza la formula:
+   t_new = alpha * t_recent + (1 - alpha) * t_old */
+void
+calc_new_total_exec(int old, int recent)
+{
+    int res;
+    if (old == 0)
+      res = recent;
+    else
+    {
+        fp one_fp = int_to_fp(1);
+        fp alpha = div_int(one_fp,2);
+        fp alpha_alt = sub_fp(one_fp, alpha);
+        fp recent_val = mult_int(alpha, recent);
+        fp old_val = mult_int(alpha_alt, old);
+        res = fp_to_int_round(add_fp(recent_val, old_val));
+        // struct thread_dur *t_dur = malloc (sizeof *t_dur);
+        // t_dur->name = thread_name()
+        // strlcpy (t_dur->name, thread_name(), sizeof t_dur->name);
+        // t_dur->total_exec = t_new;
+    }
+    thread_current()->total_exec = res;
+    printf("T: %s \tExec: %d\n", thread_name(), thread_current()->total_exec );
+    // update_exec_time(thread_current()->name, res);
+}
 
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
