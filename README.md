@@ -1,5 +1,5 @@
 # Calendarizador
-##Proyecto I - Calendarizador de Procesos
+## Proyecto I - Calendarizador de Procesos
 
 
 ### Descripción de contenidos de la carpeta PintOS
@@ -22,7 +22,7 @@
 
 
 
-###Archivos dentro de /threads
+### Archivos dentro de /threads
 
 **Fixedpoint.h:** Biblioteca y definición de tipos para las operaciones de punto flotante utilizadas para cálculos de variables de algoritmos Shortest-Job-First y Colas Multinivel.
 
@@ -61,6 +61,4 @@
 **/build/kernel.bin:** Imagen de memoria del kernel, esto significa, los bytes exactos que son cargados a memoria para ejecutar el Pintos kernel. Esto es como el "kernel.o" sin la información de debug, lo cual ahorra bastante espacio.
 
 **/build/loader.bin:** Imagen de memoria para el kernel loader, una pequeña porción de código es escrita en lenguaje ensamblador que lee el kernel del disco a memoria y lo inicializa. Mide exactamente 512 bytes de largo, un tamaño fijado por el PC BIOS.
-
-
 
