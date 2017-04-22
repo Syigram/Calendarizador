@@ -409,6 +409,7 @@ idle (void *idle_started_ UNUSED)
   idle_thread = thread_current ();
   // lock_acquire(&cpu_lock);
   sema_up (idle_started);
+  sema_up(idle_thread->timer_sema);
   for (;;)
     {
       /* Let someone else run. */
@@ -446,6 +447,7 @@ kernel_thread (thread_func *function, void *aux)
 struct thread *
 running_thread (void)
 {
+
   uint32_t *esp;
 
   /* Copy the CPU's stack pointer into `esp', and then round that
@@ -478,6 +480,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+  t->arrival_time = timer_ticks();
+  sema_init (&t->timer_sema, 0);
   list_push_back (&all_list, &t->allelem);
 }
 
@@ -568,7 +572,6 @@ schedule (void)
   struct thread *cur = running_thread ();
   struct thread *next = next_thread_to_run ();
   struct thread *prev = NULL;
-
   ASSERT (intr_get_level () == INTR_OFF);
   ASSERT (cur->status != THREAD_RUNNING);
   ASSERT (is_thread (next));
@@ -593,6 +596,15 @@ allocate_tid (void)
   lock_release (&tid_lock);
 
   return tid;
+}
+
+bool
+arrival_cmp (const struct list_elem *left,const struct list_elem *right,void *aux)
+{
+  struct thread *t_left = list_entry (left, struct thread, timer_elem);
+  struct thread *t_right = list_entry (right, struct thread, timer_elem);
+
+  return t_left->arrival_time < t_right->arrival_time;
 }
 
 /* Offset of `stack' member within `struct thread'.

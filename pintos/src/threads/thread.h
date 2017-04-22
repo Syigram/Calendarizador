@@ -1,6 +1,8 @@
 #ifndef THREADS_THREAD_H
 #define THREADS_THREAD_H
 
+#include "threads/synch.h"
+
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
@@ -93,6 +95,13 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+    int64_t waiting_time;
+
+    /*FCFS*/
+    int64_t arrival_time;
+    struct semaphore timer_sema;
+    struct list_elem timer_elem;        /* List element for timer_wait_list. */
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -137,5 +146,8 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+bool arrival_cmp (const struct list_elem *left,
+                  const struct list_elem *right, void *aux UNUSED);
 
 #endif /* threads/thread.h */
