@@ -3,44 +3,562 @@
 			|                    I semestre, 2017                |
 			|   Documento de Diseño, Primer proyecto programado  |
 			+----------------------------------------------------+
-				   
+
 ---- GRUPO ----
 
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
-FirstName LastName <email@domain.example>
+Alejandro Gonzalez <ale2793@hotmail.com>
+Esteban Calvo <email@domain.example>
 
-Calendarizador <tipo de calendarizador>
+Calendarizador <First Come First Serve>
 =======================================
 
 ---- Estructuras de datos ----
 
->> Copie la declaracion de cada estructura nueva utilizada por su 
-codigo, variables globales o estaticas, `struct', `typedef', etc.
+struct thread
+  {
+    tid_t tid;                          /* Thread identifier. */
+    enum thread_status status;          /* Thread state. */
+    char name[16];                      /* Name (for debugging purposes). */
+    uint8_t *stack;                     /* Saved stack pointer. */
+    struct list_elem allelem;           /* List element for all threads list. */
 
->> Explique las estructuras citadas anteriormente en menos de 30 
-palabras cada una.
+    /* Parametros adicionales */
+
+    int64_t wakeup_time;                /* Thread wakeup time in ticks. */
+    struct semaphore timer_sema;
+    struct list_elem timer_elem;        /* List element for wait_list. */
+
+    /* --- Parametros adicionales */
+
+    /* Shared between thread.c and synch.c. */
+    struct list_elem elem;              /* List element. */
+
+    uint32_t *pagedir;                  /* Page directory. */
+
+    /* Owned by thread.c. */
+    unsigned magic;                     /* Detects stack overflow. */
+  };
+
+El miembro wakeup_time es utilizado para guardar el tiempo en el que debe
+ser despertado un thread.
+El miembro timer_sema es un semaphore que se incluye para llevar el control
+de ejecución de los threads.
+El miembro timer_elem es utilizado para agregar los threads al wait_list que
+está definido en timer.c .
+
+static struct wait_list
+
+Esta lista guarda todos los thread que están esperando por el
+semaphore timer_sema. Los threads son agregados a la lista
+cuando se llama la función timer_sleep(int64_t ticks).
 
 
 ---- ALGORITMOS ----
 
->> Explique en prosa el funcionamiento de su algoritmo, utilizando 
-el nombre de las variables utilizadas y funciones.
+El First Come First Serve (FCFS) es el algoritmo calendarizador
+más simple. En este esquema, los procesos que solicitan el CPU
+primero, lo reciben. De esta forma, los procesos también van
+terminando en el orden que llegan a la cola.
+
+PintOS trae por defecto, un algoritmo de calendarización apropiativo
+de tipo Round Robin, por lo que la implementación del algoritmo
+requiere de ciertos cambios generales.
+
+Primero, el método timer_sleep(int64_t ticks) se cambió para que
+no hiciera thread_yield() cada vez que se llamaba. Ahora simplemente
+se bloquea el thread haciendo un sema_down() de su timer_sema y esta-
+bleciendo un nuevo valor del miembro wakeup_time, de acuerdo a los
+timer_ticks() actuales y el argumento de entrada del timer_sleep().
+Además, el thread que se pone a "dormir" se agrega a la lista de espera,
+es decir, a la wait_list que está definida dentro de timer.c .
+Luego, dentro de la función timer_interrupt(), se verifica constan-
+temente el primer thread que se encuentra en la lista de espera
+wait_list para comprobar si ya debería hacerse un sema_up de su semaphore
+debido a que se alcanzó su wakeup_time. El funcionamiento de este
+método es importante pues siempre es necesario poner a "dormir"
+los threads para poder calendarizarlos.
+
+De esta forma, los threads son agregados a la wait_list de
+acuerdo al orden en que éstos se van creando y poniéndose
+a "dormir". Una vez calendarizados, los procesos comienzan
+a ejecutarse de acuerdo a su wakeup_time, luego de que
+haya ocurrido el sema_up.
+
+Anteriormente se mencionó que PintOS era apropiativo, esto
+implica que fue necesario remover los thread_yield()
+que se ejecutan cada 4 segundos en la función thread_tick(), los
+cuales básicamente se encargan de realizar la calendarización
+Round Robin en PintOS.
 
 
 ---- SYNC ----
 
->>Describa como existe una condicion de carrera en
-thread_set_priority() y explique como su algoritmo lo resuelve. 
-Justifique por que un lock podria o no podria funcionar para este 
-algoritmo
+Se implementó un struct tipo semaphore que se encarga de llevar
+el control de la sincronización de los threads, de esta forma,
+los threads se van ejecutando de acuerdo al orden de llegada
+wakeup_time.
+
+Cada vez que se llama la función timer_sleep(int64_t ticks) se hace un sema_down
+del thread actual, y cuando el timer_sleep alcanza su valor, la función
+thread_tick() hace sema_up del thread que debería despertarse. Si se llega al
+punto en que varios threads ya deberían despertarse, estos se van calenda-
+rizando y ejecutándose en orden.
+
 
 ---- JUSTIFICACION ----
->>Describa la razon por la que se decidio implementar este diseño 
-y en que maneras es superior a otras soluciones que consideraron.
->>Realize una corta critica, positiva o negativa, sobre su 
-algoritmo y describa como los cambios de contexto en este 
-calendarizador y las reglas y politicas implementadas afectan el 
-desempeño del procesador.
+
+En general, la implementación de este algoritmo es relativamente
+simple, pues lo único que debe hacerse es ir asignando CPU
+conforme lo van solicitando los procesos y se entrega el CPU
+hasta que el último proceso que lo solicitó finalice, a menos de
+que se haya llamado a la función timer_sleep().
+
+Se decidió re-implementar la forma en que se ejecuta el timer_sleep()
+debido a que inicialmente, esta función lo único que hacía era desha-
+bilitar los interrupts y hacer thread_yield() hasta que se cumpliera
+el tiempo de sleep. Sin embargo, esta implementación no se ajustaba
+a nuestras necesidades puesto que al hacer thread_yield() constante-
+mente durante el sleep, hacemos los threads esten cediendo constantemente
+su CPU asignado, brindando cierta apropiatividad. Lo cual no sirve
+para nuestro algoritmo FCFS, es por esto que se decidió re-implementar
+la función timer_sleep().
+
+Al eliminarse la naturaleza apropiativa y RR de los threads en PintOS, estos
+pueden ejecutarse en orden con respecto a su wakeup_time y ceder su
+CPU hasta que hayan finalizado. Implementando efectivamente el FCFS.
+
+Un efecto negativo de estas politicas es que los tiempos de espera
+promedio de cada thread son largos, de hecho, son más largos que
+para cualquier otra implementación de algoritmo calendarizador. Pues los
+threads deben esperar, hasta que los threads anteriores que solicitaron
+el CPU finalicen. Esto reduce la necesidad de estar efectuando cambios de
+contexto constantemente, por lo que el overhead del sistema es menor.
+
+Sin embargo, este algoritmo presenta un problema y es que sí hay varios
+procesos I/O bound que están esperando por el procesador, estos deben
+esperar en idle, hasta que el procesador finalice de ejecutar los
+todos los procesos CPU bound que están en la lista de espera. Lo mismo
+ocurre en el caso contrario, todos los procesos CPU bound que en la
+cola ready, deben esperar que finalicen todos los procesos I/O bound
+cuando éstos están ejecutándose.
+Esto genera lo que se conoce como efecto convoy, debido a que los
+demás procesos deben esperar hasta que un proceso grande finalice
+para después poder ejecutarse.
+
+___________________________________________________________________
+
+
+Calendarizador <Shortest Job First>
+=======================================
+
+---- Estructuras de datos ----
+
+struct thread
+  {
+    tid_t tid;                          /* Thread identifier. */
+    enum thread_status status;          /* Thread state. */
+    char name[16];                      /* Name (for debugging purposes). */
+    uint8_t *stack;                     /* Saved stack pointer. */
+    struct list_elem allelem;           /* List element for all threads list. */
+
+    /* Parametros adicionales */
+    int curr_exec;                      /* Current ticks used */
+    int total_exec;                     /* Aprox. avg ticks used */
+    struct list_elem allallelem;        /* List element para la lista
+                                           de todos todos los threads */
+    /* --- Parametros adicionales */
+
+    int64_t wakeup_time;                /* Thread wakeup time in ticks. */
+    struct semaphore timer_sema;
+    struct list_elem timer_elem;        /* List element for timer_wait_list. */
+
+    /* Shared between thread.c and synch.c. */
+    struct list_elem elem;              /* List element. */
+
+    uint32_t *pagedir;                  /* Page directory. */
+
+    /* Owned by thread.c. */
+    unsigned magic;                     /* Detects stack overflow. */
+  };
+
+El parámetro curr_exec lleva control de la duración actual del thread.
+El parámetro total_exec guarda la aproximación de la duración de cada thread.
+El parámetro allallelem utilizado para "linkear" el thread a la lista de
+todos los threads que han corrido en el SO desde el boot.
+
+extern bool sjf
+
+Se establece con la especificación del parámetro -mlfqs=3 y es definida en
+el método init().
+
+static struct list all_all_list
+
+Esta lista contiene un historial de todos los threads que han sido ejecutados
+y sólo se agrega un elemento por cada thread. Son diferenciados e identifica-
+dos mediante el nombre.
+
+---- ALGORITMOS ----
+
+El Shortest Job First es un algoritmo que asocia y calendariza un proceso
+de acuerdo a su siguiente CPU burst esperado. Inicialmente, no se conoce el
+CPU Burst de un determinado proceso, por lo que es necesario calcular su
+duración y realizar aproximaciones basándose en las mismas para calcular
+futuras estimaciones. Inicialmente, los threads corren en orden FCFS
+pues todos tienen una aproximación total de 0.
+
+Para su implementación fue necesario el uso de una lista adicional,
+all_all_list, la cual se encarga de llevar un registro de todos los threads que
+han corrido desde el boot. Con esta lista podemos obtener la duración
+aproximada del CPU Burst para un thread específico, el cual identificamos
+mediante la variable char name[16] y su CPU Burst con total_exec.
+Para las aproximaciones, utilizamos la función calc_new_total_exec(int old,
+int recent), la cual calcula el valor de la nueva aproximación con la fórmula:
+
+t_new = alpha * t_recent + (1 - alpha) * t_old , donde:
+
+alpha: 1/2
+t_recent: duración reciente
+t_old: aproximación anterior
+t_new: nueva aproximación
+
+Esta función es llamada cuando finaliza un thread, es decir, en la función
+thread_exit(void) y así actualizamos su valor. Una vez obtenida la nueva apro-
+ximación, se actualizan los total_exec de todos los threads que están activos
+utilizando la función thread_foreach(get_total_exec_each, NULL), cuya función
+implícita get_total_exec_each(struct thread *t, void *aux) se encarga
+de actualizar los total_exec para cada thread verificando en la lista
+all_all_list. Una vez actualizados todos los valores, se actualiza la lista
+ready_list con la función duration_cmp (const struct list_elem *left,
+const struct list_elem *right, void *aux), la cual ordena la lista
+de threads de manera ascendente de acuerdo a su total_exec.
+
+Continuando en la función thread_exit(void), se procede con la ejecución normal
+del sistema y se llama a schedule(), el cual ejecuta los threads de acuerdo al
+nuevo orden de la lista.
+
+El cálculo de las duraciones recientes, se realiza llevando un conteo de ticks
+para cada thread, así, se incrementa en 1 su valor con cada llamada a la función
+thread_tick(void) y su valor final se alcanza cuando el thread llega a su
+función de exit.
+
+Nuestra implementación de este algoritmo es de tipo no apropiativo.
+
+
+---- SYNC ----
+
+La función thread_foreach() se ejecuta con las interrupciones apagadas, por lo
+que no se producen condiciones de carrera a la hora de actualizar los valores.
+
+---- JUSTIFICACION ----
+
+Consideramos que nuestra implementación es bastante eficiente en cuánto al
+cálculo de la aproximación, la actualización de sus valores y el
+re-ordenamiento de la lista. Pues todas estas acciones sólo se ejecutan al
+finalizar un thread, lo cual minimiza el overhead pues no se ejecutan constan-
+temente, como pasaría si se ejecutaran en cada llamada a timer_tick() por
+ejemplo. Además consideramos eficiente, que lo único que se efectúa durante
+cada timer_tick() es el aumento al valor de la duración del CPU Burst actual.
+
+La dificultad de este algoritmo, consiste en que normalmente es muy díficil
+tener aproximaciones exactas de los CPU burst requeridos por cada thread.
+En nuestro caso, se calculan las duraciones de acuerdo a la cantidad de
+ticks que tarda un proceso en ejecutarse. Si el valor anterior aproximado
+es 0, el nuevo valor de la aproximación corresponde a la última duración
+calculada. De otra forma, se calcula con la fórmula anterior:
+
+t_new = alpha * t_recent + (1 - alpha) * t_old
+
+Decidimos elegir alpha = 1/2 para que tanto la aproximación anterior
+como la nueva aproximación, tengan el mismo peso en el cálculo de
+la nueva aproximación de CPU Burst.
+
+Debido a que la primera vez los threads se ejecutan en orden FCFS, ya que
+no se cuenta con el valor de CPU Burst para ningún thread, nuevamente
+requerimos utilizar los miembros del struct thread utilizados para la
+implementación del algoritmo FCFS. A lo largo del proyecto, continuamos
+utilizando esta implementación de timer_sleep(int64_t ticks) y la
+actualización de su wakeup_time durante cada timer_interrupt().
+
+Inicialmente contábamos con un diseño relativamente mejor, el cual
+hacía estas comprobaciones y actualizaciones al inicio del thread, es decir, en
+la función de init_thread(). De esta manera, era posible insertar ordenada-
+mente los threads desde que se añadían por primera vez a la lista
+ready_list, por lo que no había necesidad de re-ordenarla pues desde su inicio
+estaría ordenada. Sin embargo, optamos por la implementación previamente
+descrita debido a que tuvimos problemas a la hora de ejecutar múltiples sets
+de threads durante las pruebas. Específicamente, teníamos el problema de que
+a partir del segundo set, nuestro sistema PintOS dejaba de calendarizar los
+threads que se creaban, a pesar de que sí se añadían a la lista ready_list.
+
+Otro aspecto que se podría mejorar en la implementación, es la forma en
+que se identifican los threads. Pues son identificados mediante
+su nombre, lo cual no es método muy confiable ya que dos threads distintos
+pueden crearse bajo el mismo nombre.
+
+
+___________________________________________________________________
+
+
+Calendarizador <Round Robin>
+=======================================
+
+---- Estructuras de datos ----
+
+struct thread
+{
+  tid_t tid;                          /* Thread identifier. */
+  enum thread_status status;          /* Thread state. */
+  char name[16];                      /* Name (for debugging purposes). */
+  uint8_t *stack;                     /* Saved stack pointer. */
+  struct list_elem allelem;           /* List element for all threads list. */
+
+  /* Parametros adicionales */
+  int ticks;
+  /* --- Parametros adicionales */
+
+  /* Shared between thread.c and synch.c. */
+  struct list_elem elem;              /* List element. */
+
+  uint32_t *pagedir;                  /* Page directory. */
+
+  /* Owned by thread.c. */
+  unsigned magic;                     /* Detects stack overflow. */
+};
+
+
+El miembro ticks, es utilizado para llevar un conteo de los ticks
+que lleva ejecutándose un thread.
+
+#define QUANTUM
+
+Se define una variable global para todos los threads, que contiene el
+valor del Quantum elegido para nuestro algoritmo.
+
+---- ALGORITMOS ----
+
+PintOS en su defecto, cuenta con una implementación de Round Robin, por
+lo que la mayoría de variables y métodos necesarios para su realización
+ya están hechos.
+
+Nuestra implementación es bastante sencilla y consiste en llevar un
+conteo de ticks, distinto para todos los threads que se encuentran
+activos en el sistema. De esta forma, comprobamos la condición
+thread_current()->ticks >= QUANTUM, y si ésta se cumple, el thread actual
+llama a la función intr_yield_on_return() la cual establece una flag
+llamada yield_on_return, que llama a la función
+thread_yield() al finalizar el interrupt. thread_yield() lo que hace
+es bloquear el thread actual que se está ejecutando y luego llamar a
+la función schedule() para así elegir el siguiente thread a ejecutar de
+acuerdo a la lista de espera ready_list.
+
+Las comprobaciones de los ticks, así como su incremento, se realizan
+dentro de la función thread_tick(), la cual corre en un contexto
+de interrupts externos. Cada vez que hay un interrupt del timer,
+es decir, cada vez que hay un "tick" del procesador, esta función es
+llamada.
+
+
+
+---- SYNC ----
+
+En este caso, no existe una condición de carrera para el
+método set_priority(). Pues no es necesaria la utilización de dicho
+método para la implementación de este algoritmo.
+
+Tampoco se requiere el uso de un lock, pues los threads ceden
+voluntariamente el procesador cuando alcanzan un tiempo de ejecución
+mayor al QUANTUM.
+
+---- JUSTIFICACION ----
+
+Este fue el último algoritmo en implementarse, por lo que para este
+momento ya estabámos bastante familiarizados con el sistema operativo
+PintOS y su funcionamiento de threads.
+
+PintOS utiliza un sistema de interrupciones de timer, donde ocurren
+TIMER_FREQ interrupciones por segundo. TIMER_FREQ debe tener un valor
+entre 19 y 1000, PintOS trae por defecto un valor de TIMER_FREQ = 100.
+Decidimos mantener este valor ya que lo consideramos adecuado para la
+cantidad de interrupciones que ocurren por segundo en el sistema,
+además de ser un número con el cual es sencillo trabajar.
+
+En algunos libros se menciona que generalmente se utiliza un
+quantum de 10 milisegundos, como unidad de tiempo para este algoritmo.
+En otros lugares se menciona que puede estar en un rango que va de los
+10 a los 100 milisegundos. También, algunos papers sugieren el uso de
+fórmulas para así elegir un valor óptimo. Si se elige un valor muy pequeño,
+por ejemplo, 10 milisegundos, esto implicaría que se deben estar
+realizando cambios de contexto cada 10 milisegundos. Una de las guías
+para elegir un buen quantum, es que el valor de éste debe ser al menos
+100 veces mayor que el tiempo que tarda un cambio de contexto en
+ejecutarse.
+
+En nuestro caso, decidimos elegir un quantum que corresponde a 7 ticks
+del procesador. Este valor fue elegido por dos razones, la primera es que
+se mantiene un valor promedio de 15 cambios de contexto por segundo, lo
+cual consideramos apropiado para PintOS ya que este sistema no corre
+generalmente una gran cantidad de threads simultáneamente y además que
+para las pruebas se correrán un máximo de 25 threads, por lo que en 2
+segundos, el procesador le ha sido asignado a todos los threads al
+menos una vez. La otra razón, es que realizamos múltiples pruebas con
+distintos valores de quantums y el valor de 7 nos brindada regularmente
+los menores tiempos de ejecución. Cabe resaltar, que todas las pruebas
+fueron hechas utilizando threads de tipo CPU-Bounded únicamente.
+
+
+En general, este es uno de los algoritmos más utilizados en la
+calendarización de procesos debido a que su implementación
+es relativamente sencilla y no provoca starvation para ningún
+proceso, ya que a todos se les asigna un quantum para
+que corran durante ese tiempo. La principal dificultad se encuentra
+en la elección del mejor quantum. La elección del quantum apropiado
+es una tarea muy complicada debido a que todos los sistemas
+operativos ejecutan diferentes conjuntos de tareas y además
+tienen requerimientos diferentes.
+
+___________________________________________________________________
+Calendarizador <Colas multinivel>
+=======================================
+
+---- Estructuras de datos ----
+
+struct thread
+{
+  tid_t tid;                          /* Thread identifier. */
+  enum thread_status status;          /* Thread state. */
+  char name[16];                      /* Name (for debugging purposes). */
+  uint8_t *stack;                     /* Saved stack pointer. */
+  struct list_elem allelem;           /* List element for all threads list. */
+
+  /* Parametros adicionales */
+  int priority;                       /* Priority. */
+  int nice;                           /* Nice value */
+  fp recent_cpu;                      /* Recent CPU usage */
+  /* --- Parametros adicionales */
+
+  /* Shared between thread.c and synch.c. */
+  struct list_elem elem;              /* List element. */
+
+  uint32_t *pagedir;                  /* Page directory. */
+
+  /* Owned by thread.c. */
+  unsigned magic;                     /* Detects stack overflow. */
+};
+
+
+El miembro priority guarda el valor de prioridad de un thread. Este
+valor puede estar entre 0 y 63, siendo 63 la más alta prioridad.
+El miembro nice determina que tan "bueno" es un thread con los demás
+threads. Este valor va de -20 a 20, un valor de 20 provoca que
+el thread ceda tiempo de CPU que normalmente recibiría.
+El miembro recent_cpu es de tipo floating point y se utiliza
+para medir cuánto CPU ha recibido el thread recientemente.
+
+fp load_avg --> Variable global de threads
+
+Guarda el valor estimado del número de threads que estuvieron listos
+para correr durante el último minuto.
+
+---- ALGORITMOS ----
+
+El algoritmo de colas multinivel, particiona la lista de espera ready_list
+en múltiples colas de espera, cada una con procesos distintos y
+necesidades de calendarización distintas.
+
+Nuestro calendarizador cuenta con 64 prioridades por lo que se tienen 64 colas
+de espera, las cuales van desde 0 (PRI_MIN) hasta 63 (PRI_MAX). Esta prioridad
+es calculada inicialmente en la creación del thread, cuando se establece
+la prioridad inicial con el método thread_set_priority(int new_priority).
+La función que calcula la prioridad se llama refresh_priority(), y utiliza
+la fórmula: priority = PRI_MAX - (recent_cpu / 4) - (nice * 2) , para
+realizar el cálculo. Donde recent_cpu corresponde a la estimación del
+CPU utilizado recientemente para ese thread y nice es el valor de nice del
+thread.
+
+El valor de recent_cpu es 0 para el primer thread creado, esto se hace
+en el método thread_init(), y el valor de su padre para nuevos threads.
+Cada vez que ocurre un timer interrupt, es decir, en cada llamada a
+thread_tick() el valor de recent_cpu se aumenta en 1 para el thread
+que está corriendo actualmente. Adicionalmente, una vez por segundo
+se recalcula el valor de recent_cpu para cada thread. Para calcular este
+valor se utiliza la función refresh_cpu(), la cual emplea la fórmula:
+recent_cpu = (2*load_avg)/(2*load_avg + 1) * recent_cpu + nice  , donde
+load_avg es un moving average del número de threads que están listos
+para correr.
+
+El load_avg, también conocido como system load average, estima el número
+promedio de threads que estuvieron listos para correr durante el último
+minuto. A diferencia de recent_cpu y nice, esta es una variable global
+y es la misma para cualquier thread. En el método thread_init(), su
+valor es inicializado en 0 y luego, una vez por segundo, su valor
+se actualiza con la función refresh_load_avg() la cual utiliza la fórmula:
+load_avg = (59/60)*load_avg + (1/60)*ready_threads  , donde ready_threads,
+corresponde al número de threads que están corriendo o que están
+en la lista de ready, al momento de la actualización.
+
+Para el cálculo de estas fórmulas, fue necesaria la implementación de
+una biblioteca de punto fijo, la cual nos permite realizar cálculos
+con valores flotantes utilizando variables de tipo integer.
+
+En cuánto a las actualizaciones que se requieren una vez por segundo,
+la comprobación se hace dentro de la función thread_tick(), con la
+condición timer_ticks() % TIMER_FREQ == 0. Si se cumple, se efectúan
+las respectivas actualizaciones llamando a las funciones refresh_cpu()
+y refresh_load_avg(). Adicionalmente, cada 4 ticks, se llama la
+función refresh_priority() que actualiza la prioridad del thread
+que se está ejecutando actualmente.
+
+
+A la hora de calendarizar, si existen múltiples threads con
+una misma prioridad, estos son ejecutados en orden Round Robin
+hasta que finalicen todos los threads con esa prioridad.
+
+
+---- SYNC ----
+
+No creemos que exista una condición de carrera en el método
+set_thread_priority() pues cada thread posee su propia prioridad
+por lo que no es una variable que pueda ser modificado por otros
+threads. Sin embargo, reconocemos que el cálculo de dicho valor,
+implica el uso de la variable global "load_avg" la cual se actualiza
+constantemente cada segundo, mientras que las prioridades lo hacen
+cada cuatro segundos. A pesar de esto, nunca observamos ningún problema
+en particular con respecto a la utilización de éste método de forma
+asíncrona. Por lo que creemos que no es necesario el uso de locks o de
+algún otro método de sincronización para su correcta ejecución.
+
+---- JUSTIFICACION ----
+
+Decidimos implementar el calendarizador por colas multinivel
+de esta forma pues este es el diseño recomendado por la Universidad de
+Stanford para implementar el algoritmo de olas multinivel en PintOS. Además,
+que se ofrece una guía bastante completa y detallada en cuanto a su imple-
+mentación en general y en cuanto a los cálculos y los parámetros que se deben
+utilizar. Las especificaciones de este calendarizador se pueden encontrar
+en la dirección: http://www.scs.stanford.edu/14wi-cs140/pintos/pintos_7.html.
+Este diseño corresponde al utilizado por el Sistema Operativo 4.4BSD, obte-
+nido del libro: The Design and Implementation of the 4.4BSD Operating System.
+
+Debido al tiempo y otros factores, no se consideraron otros diseños
+a parte de éste. Principalmente por que vimos que el BSD Scheduler
+podía ser implementado con relativa facilidad en PintOS, además de
+que fue un algoritmo utilizado por un Sistema Operativo real, por lo
+que confiamos en que el diseño sea eficiente.
+
+Un problema de este algoritmo, es que no separa los threads permanentemente
+en colas distintas de acuerdo al tipo del proceso, sino que separa los
+threads únicamente de acuerdo a su prioridad. Además, el único algoritmo
+distinto que se ejecuta en cada cola es el Round Robin, algo que también
+podría mejorarse implementando distintos tipos de calendarizador para
+las distintas colas.
+
+Otro problema de este algoritmo es que depende de un valor fijo,
+denominado nice, el cual se refiere a que tan "bueno" debe ser
+un thread con los demás threads. Esto quiere decir, que entre mayor sea
+su valor de nice, entrega más frecuentemente el CPU de lo que normalmente
+lo haría. Un valor de nice -20, provoca que el thread sostenga el
+CPU durante más tiempo. Al ser un valor estático, todos los threads
+tienen el valor de nice que se les dé durante su creación, por lo que
+no sería un valor que se ajusta de acuerdo a los requerimientos del thread.
 
 ___________________________________________________________________
