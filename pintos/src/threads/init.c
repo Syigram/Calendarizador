@@ -309,7 +309,7 @@ run_task (char **argv)
 #else
 	
 	int* cant=0;
-	int* porc=0;
+	int* porc=-1;
 	bool bound=false;
 	int active = false;
 	for (; *argv != NULL; argv++){

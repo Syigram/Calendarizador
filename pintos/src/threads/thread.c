@@ -21,7 +21,7 @@
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
 #define THREAD_MAGIC 0xcd6abf4b
-#define TIME_SLICE 10           /* # of timer ticks to give each thread. */
+#define TIME_SLICE 5           /* # of timer ticks to give each thread. */
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
@@ -108,7 +108,7 @@ thread_init (void)
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
-  init_thread (initial_thread, "main", PRI_DEFAULT);
+  init_thread (initial_thread, "main", 0);
   initial_thread->status = THREAD_RUNNING;
   initial_thread->tid = allocate_tid ();
 }
@@ -704,7 +704,8 @@ refresh_priority ()
   for (tmp = list_begin (&ready_list); tmp != list_end (&ready_list); tmp = list_next (tmp))
   {
     struct thread *t = list_entry (tmp, struct thread, elem);
-    refresh_priority_thread(t, NULL);
+		if (t != initial_thread)
+    	refresh_priority_thread(t, NULL);
   }
   refresh_priority_thread(r, NULL);
 }
