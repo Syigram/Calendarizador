@@ -93,20 +93,29 @@ struct thread
     struct list_elem allelem;           /* List element for all threads list. */
 
 		/* Stats */
-    int avg_wait;
+    int recent_wait;
+    int total_wait;
 		int repeat;
+		int prio[10];
+		int pos;
+		bool iobound;
     /* --- Stats */
-  
+
+    /* RR */
+    int ticks;
+    /* --RR*/
+
     /* SJF */
     int curr_exec;                      /* Current ticks used */
     int total_exec;                     /* Aprox. avg ticks used */
-    struct list_elem allallelem;        /* List element para la lista de todos todos los threads */
+    struct list_elem allallelem;        /* List element for all_all_list */
     /* --- SJF */
 
 		/* MLFQS */
-		int priority;                      
+		int priority;
     int nice;
     fp recent_cpu;
+
 		/* MLFQS */
 
 		/* Timer */
@@ -114,7 +123,7 @@ struct thread
     struct semaphore timer_sema;
     struct list_elem timer_elem;        /* List element for timer_wait_list. */
 		/* --- Timer */
-    
+
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
@@ -127,12 +136,25 @@ struct thread
     unsigned magic;                     /* Detects stack overflow. */
   };
 
-/* Algoritm selection*/
+
+// struct priory
+// {
+//   int value;
+//   struct list_elem priority_elem;
+// };
+/* Algorithm selection*/
 extern bool thread_mlfqs;
 extern bool roundrobin;
 extern bool fcfs;
 extern bool sjf;
-/* --- Algoritm selection*/
+/* --- Algorithm selection*/
+
+/* Statistics variables */
+extern int total_ready_threads;
+extern int total_wait_time;
+/* Statistics variables */
+
+extern bool verbose;
 
 void thread_init (void);
 void thread_start (void);
@@ -160,6 +182,7 @@ void thread_foreach (thread_action_func *, void *);
 /* Funciones timer */
 bool wakeup_cmp (const struct list_elem *left, const struct list_elem *right, void *aux);
 /* --- Funciones timer */
+bool setBound(bool);
 
 /* Funciones MLFQS */
 bool priority_cmp (const struct list_elem *left, const struct list_elem *right, void *aux);
@@ -183,7 +206,12 @@ int get_total_exec(struct thread *t);
 void get_total_exec_each(struct thread *t, void *aux UNUSED);
 void calc_new_total_exec(int old, int recent);
 void print_all_all_list(void);
-void print_ready_list(void);
+
 /* --- Funciones para algoritmo SJF */
 
+
+
+/* Funciones para estadisticas*/
+void print_priority_values(struct thread *t);
+void print_kernel_ticks(void);
 #endif /* threads/thread.h */

@@ -237,6 +237,8 @@ parse_options (char **argv)
       
       if (!strcmp (name, "-h"))
         usage ();
+			else if (!strcmp (name, "-v"))
+        verbose = true;
       else if (!strcmp (name, "-q"))
         shutdown_configure (SHUTDOWN_POWER_OFF);
       else if (!strcmp (name, "-r"))
