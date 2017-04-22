@@ -63,7 +63,7 @@ run_test (const char *name)
   PANIC ("no test named \"%s\"", name);
 }
 
-/* Runs the test named NAME. */
+/* Runs the custom test named NAME. */
 void
 run_ctest (const char *name, int *cant, int *porc, bool bound) 
 {

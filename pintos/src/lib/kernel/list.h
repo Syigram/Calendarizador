@@ -91,6 +91,7 @@ struct list_elem
   {
     struct list_elem *prev;     /* Previous list element. */
     struct list_elem *next;     /* Next list element. */
+		int *value;
   };
 
 /* List. */
@@ -136,7 +137,9 @@ struct list_elem *list_rend (struct list *);
 struct list_elem *list_head (struct list *);
 struct list_elem *list_tail (struct list *);
 
+
 /* List insertion. */
+void setValue(struct list_elem *elem,int* num);
 void list_insert (struct list_elem *, struct list_elem *);
 void list_splice (struct list_elem *before,
                   struct list_elem *first, struct list_elem *last);

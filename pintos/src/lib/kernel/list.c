@@ -162,6 +162,9 @@ list_tail (struct list *list)
   return &list->tail;
 }
 
+void setValue(struct list_elem *elem, int* valor){
+	 elem->value = valor;
+}
 /* Inserts ELEM just before BEFORE, which may be either an
    interior element or a tail.  The latter case is equivalent to
    list_push_back(). */
