@@ -3,6 +3,8 @@
 #include <string.h>
 #include <stdio.h>
 
+int* cantidad, porcentaje;
+bool bounded;
 struct test 
   {
     const char *name;
@@ -60,6 +62,17 @@ run_test (const char *name)
       }
   PANIC ("no test named \"%s\"", name);
 }
+
+/* Runs the test named NAME. */
+void
+run_ctest (const char *name, int *cant, int *porc, bool bound) 
+{
+	cantidad = cant;
+	porcentaje = porc;
+	bounded = bound;
+	run_test(name);
+}
+
 
 /* Prints FORMAT as if with printf(),
    prefixing the output by the name of the test

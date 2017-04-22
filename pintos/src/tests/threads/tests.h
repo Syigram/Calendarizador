@@ -1,8 +1,12 @@
 #ifndef TESTS_THREADS_TESTS_H
 #define TESTS_THREADS_TESTS_H
+#include <stdbool.h>
 
 void run_test (const char *);
+void run_ctest (const char *, int *, int *, bool);
 
+extern int* cantidad, porcentaje;
+extern bool bounded;
 typedef void test_func (void);
 
 extern test_func prueba;

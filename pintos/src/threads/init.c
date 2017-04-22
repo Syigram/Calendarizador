@@ -45,6 +45,7 @@ uint32_t *init_page_dir;
 /* -f: Format the file system? */
 static bool format_filesys;
 
+bool act = false;
 /* -filesys, -scratch, -swap: Names of block devices to use,
    overriding the defaults. */
 static const char *filesys_bdev_name;
@@ -256,25 +257,24 @@ parse_options (char **argv)
         random_init (atoi (value));
       else if (!strcmp (name, "-alg")){
         if (!strcmp (value, "1") ){
-		printf("Algoritmo FCFS seleccionado\n");
-		fcfs= true;
-	}
-	else if (!strcmp (value, "2") ){
-		printf("Algoritmo Round-Robin seleccionado\n");
-		roundrobin = true;
-	}
-	else if (!strcmp (value, "3") ){
-		printf("Algoritmo SJF seleccionado\n");
-		sjf = true;
-	}
-	else if (!strcmp (value, "4") ){
-		printf("Algoritmo Colas Multinivel seleccionado\n");
-		thread_mlfqs= true;
-	}
-	else
-		PANIC ("unknown option `%s' (between 1 and 4)\n", value);
-	//thread_mlfqs= true
-      }
+					printf("Algoritmo FCFS seleccionado\n");
+					fcfs= true;
+				}
+				else if (!strcmp (value, "2") ){
+					printf("Algoritmo Round-Robin seleccionado\n");
+					roundrobin = true;
+				}
+				else if (!strcmp (value, "3") ){
+					printf("Algoritmo SJF seleccionado\n");
+					sjf = true;
+				}
+				else if (!strcmp (value, "4") ){
+					printf("Algoritmo Colas Multinivel seleccionado\n");
+					thread_mlfqs= true;
+				}
+				else
+					PANIC ("unknown option `%s' (between 1 and 4)\n", value);
+		    }
 #ifdef USERPROG
       else if (!strcmp (name, "-ul"))
         user_page_limit = atoi (value);
@@ -300,13 +300,43 @@ parse_options (char **argv)
 static void
 run_task (char **argv)
 {
-  const char *task = argv[1];
-  
+	if (act)
+		return;
+  const char *task = argv[1];  
   printf ("Executing '%s':\n", task);
 #ifdef USERPROG
   process_wait (process_execute (task));
 #else
-  run_test (task);
+	
+	int* cant=0;
+	int* porc=0;
+	bool bound=false;
+	int active = false;
+	for (; *argv != NULL; argv++){
+		if (!strcmp (*argv, "-t")){
+			argv++;
+			cant= atoi(*argv);
+			active = true;
+		}
+		else if (!strcmp (*argv, "-p")){
+			argv++;
+			porc= atoi(*argv);
+			active = true;
+		}
+		else if (!strcmp (*argv, "-b")){
+			argv++;			
+			active = true;
+			porc= atoi(*argv);
+			bound = true;
+		}
+	}
+
+	if (!active)
+		run_test (task);
+	else
+		run_ctest(task, cant, porc, bound);
+	act= true;
+
 #endif
   printf ("Execution of '%s' complete.\n", task);
 }
@@ -345,9 +375,9 @@ run_actions (char **argv)
 
       /* Find action name. */
       for (a = actions; ; a++)
-        if (a->name == NULL)
+        if (a->name == NULL && !act)
           PANIC ("unknown action `%s' (use -h for help)", *argv);
-        else if (!strcmp (*argv, a->name))
+        else if (!strcmp (*argv, a->name) || act)
           break;
 
       /* Check for required arguments. */

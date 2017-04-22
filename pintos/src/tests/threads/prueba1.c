@@ -9,9 +9,9 @@
 #include "threads/thread.h"
 #include "devices/timer.h"
 
-int thread_cnt;
+#define thread_cnt 20
 
-struct thread_info
+struct thread_info 
   {
     int64_t start_time;
     int tick_count;
@@ -21,19 +21,16 @@ struct thread_info
 
 static void load_thread (void *aux);
 
-void
+void 
 prueba (void)
 {
-	thread_cnt= cantidad;
   struct thread_info info[thread_cnt];
   int64_t start_time;
   int i;
-	 
-	msg ("Porcentaje: %d", porcentaje);
-	msg ("Bounded: %d", bounded);
+
   start_time = timer_ticks ();
   msg ("Starting %d threads...", thread_cnt);
-  for (i = 0; i < thread_cnt; i++)
+  for (i = 0; i < thread_cnt; i++) 
     {
       struct thread_info *ti = &info[i];
       char name[16];
@@ -46,49 +43,22 @@ prueba (void)
 
     }
 
-    for (i = thread_cnt - 1; i >= 0; i--)
-      {
-
-        struct thread_info *ti = &info[i];
-        char name[16];
-        ti->start_time = start_time;
-        ti->tick_count = 0;
-        ti->meta = i*i*10000;
-
-        snprintf(name, sizeof name, "Thread %d", i);
-        thread_create (name, PRI_DEFAULT, load_thread, ti);
-        // timer_sleep (1 * TIMER_FREQ);
-      }
-      for (i = thread_cnt - 1; i >= 0; i--)
-        {
-
-          struct thread_info *ti = &info[i];
-          char name[16];
-          ti->start_time = start_time;
-          ti->tick_count = 0;
-          ti->meta = i*i*10000;
-
-          snprintf(name, sizeof name, "Thread %d", i);
-          thread_create (name, PRI_DEFAULT, load_thread, ti);
-          // timer_sleep (1 * TIMER_FREQ);
-        }
-
   msg ("Sleeping 10 seconds to let threads run, please wait...");
-  timer_sleep (2 * TIMER_FREQ * thread_cnt);
-
+  timer_sleep (10 * TIMER_FREQ);
+  
   for (i = 0; i < thread_cnt; i++)
     msg ("Thread %d received %d ticks.", i, info[i].tick_count);
 }
 
 static void
-load_thread (void *ti_)
+load_thread (void *ti_) 
 {
   struct thread_info *ti = ti_;
   int i=0;
   int64_t last_time = 0;
   int64_t sleep_time = 1 * TIMER_FREQ;
   timer_sleep (sleep_time - timer_elapsed (ti->start_time));
-  while ( i < ti-> meta )
+  while ( i < ti-> meta ) 
     {
       int64_t cur_time = timer_ticks ();
       if (cur_time != last_time)
@@ -96,5 +66,5 @@ load_thread (void *ti_)
       last_time = cur_time;
       i++;
     }
-	msg("Fin de thread");
+	printf("Fin del thread\n");
 }

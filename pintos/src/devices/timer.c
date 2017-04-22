@@ -50,7 +50,7 @@ timer_calibrate (void)
   unsigned high_bit, test_bit;
 
   ASSERT (intr_get_level () == INTR_ON);
-  printf ("Calibrating timer...  ");
+  printf ("Calibrating timer...  \n");
 
   /* Approximate loops_per_tick as the largest power-of-two
      still less than one timer tick. */
@@ -93,27 +93,13 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks) 
 {
-  /*int64_t start = timer_ticks ();
-
-  ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
-  */
-
   //Negative wait time
   if (ticks < 0 )
      return;
 
   struct thread *t = thread_current();
   t->wakeup_time = timer_ticks () + ticks;
-  
-  ASSERT (intr_get_level () == INTR_ON);
-  printf("Entra el thread %s con %d ticks\n", t->name, ticks);
-  intr_disable ();
   list_insert_ordered (&wait_list, &t->timer_elem, wakeup_cmp, NULL);
-  intr_enable ();
-
-  /* Thread blocks itself by calling thread_block (). */
   sema_down (&t->timer_sema);
 }
 
@@ -194,22 +180,15 @@ timer_interrupt (struct intr_frame *args UNUSED)
   ticks++;
   thread_tick ();
   struct thread *t;
-  
-  //Disable interruptions
-  enum intr_level old_level = intr_disable ();
 
   while (!list_empty (&wait_list))
   {
     t = list_entry (list_front (&wait_list), struct thread, timer_elem);
-
-    /* List ordered, the first element is the first to wake up. */
     if (ticks < t->wakeup_time)
       break;
     sema_up (&t->timer_sema);
     list_pop_front (&wait_list);
   }
-  intr_set_level (old_level);
-
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
